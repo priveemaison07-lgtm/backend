@@ -27,6 +27,11 @@ export enum AuthProvider {
   APPLE = 'apple',
 }
 
+export enum UserRole {
+  USER = 'user',
+  ADMIN = 'admin',
+}
+
 @Entity('users')
 @Index(['email'], { unique: true })
 @Index(['phoneNumber'], { unique: true })
@@ -51,6 +56,13 @@ export class User {
   @Column({ nullable: true })
   @Exclude()
   password: string;
+
+  @Column({
+    type: 'enum',
+    enum: UserRole,
+    default: UserRole.USER,
+  })
+  role: UserRole;
 
   @Column({ nullable: true })
   location?: string;

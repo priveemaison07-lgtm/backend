@@ -66,6 +66,7 @@ import { jwtConfig } from './config/jwt.config';
       }),
       inject: [ConfigService],
     }),
+
     // Redis Cache
     CacheModule.registerAsync({
       inject: [ConfigService],

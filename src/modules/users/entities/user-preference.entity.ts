@@ -9,6 +9,12 @@ import {
 } from 'typeorm';
 import { User, Gender } from './user.entity';
 
+export enum GenderInterest {
+  MALE = 'male',
+  FEMALE = 'female',
+  BOTH = 'both',
+}
+
 @Entity('user_preferences')
 export class UserPreference {
   @PrimaryGeneratedColumn('uuid')
@@ -17,38 +23,49 @@ export class UserPreference {
   @Column('uuid')
   userId: string;
 
-  @Column({ type: 'enum', enum: Gender, array: true })
-  interestedIn: Gender[];
+  @OneToOne(() => User, (user) => user.preferences)
+  @JoinColumn({ name: 'userId' })
+  user: User;
 
-  @Column({ type: 'simple-array', nullable: true }) // Store hobbies as an array of strings
+  @Column({
+    type: 'enum',
+    enum: GenderInterest,
+    enumName: 'gender_interest_enum',
+    array: true,
+  })
+  interestedIn: GenderInterest[];
+
+  @Column({ type: 'simple-array', nullable: true })
   hobbies?: string[];
 
   @Column({ type: 'text', nullable: true })
   bio?: string;
 
-  @Column({ type: 'date' })
+  @Column({ type: 'date', nullable: true })
   dateOfBirth?: Date;
 
   @Column({
     type: 'enum',
     enum: Gender,
+    enumName: 'gender_enum',
+    nullable: true,
   })
   gender?: Gender;
 
   @Column({ type: 'point', nullable: true })
-  location!: string;
+  location?: object; // Typically: { type: 'Point', coordinates: [longitude, latitude] }
 
   @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
-  latitude!: number;
+  latitude?: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 7, nullable: true })
-  longitude!: number;
+  longitude?: number;
 
   @Column({ nullable: true })
-  city!: string;
+  city?: string;
 
   @Column({ nullable: true })
-  country!: string;
+  country?: string;
 
   @Column({ nullable: true })
   heightCm?: number;
@@ -71,14 +88,14 @@ export class UserPreference {
   @Column({ default: 50 })
   maxDistance: number;
 
-  @Column({ type: 'json', array: true, default: [], nullable: true })
+  @Column({ type: 'json', nullable: true, default: [] })
   interests: string[];
 
   @Column({ nullable: true })
-  occupation!: string;
+  occupation?: string;
 
   @Column({ nullable: true })
-  education!: string;
+  education?: string;
 
   @Column({ default: true })
   showMe: boolean;
@@ -97,7 +114,6 @@ export class UserPreference {
 
   get age(): number | null {
     if (!this.dateOfBirth) return null;
-
     const today = new Date();
     const birthDate = new Date(this.dateOfBirth);
     let age = today.getFullYear() - birthDate.getFullYear();
@@ -112,8 +128,4 @@ export class UserPreference {
 
     return age;
   }
-
-  @OneToOne(() => User, (user) => user.preferences)
-  @JoinColumn({ name: 'userId' })
-  user: User;
 }

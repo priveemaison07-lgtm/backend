@@ -22,22 +22,24 @@ export const JoiValidationSchema = Joi.object({
   TWILIO_AUTH_TOKEN: Joi.string().required(),
 
   // Google
-  GOOGLE_CLIENT_ID: Joi.string().required(),
-  GOOGLE_CLIENT_SECRET: Joi.string().required(),
+  // GOOGLE_CLIENT_ID: Joi.string().required(),
+  // GOOGLE_CLIENT_SECRET: Joi.string().required(),
 
   // Apple
-  APPLE_CLIENT_ID: Joi.string().required(),
-  APPLE_TEAM_ID: Joi.string().required(),
+  // APPLE_CLIENT_ID: Joi.string().required(),
+  // APPLE_TEAM_ID: Joi.string().required(),
 
   // Cloudinary
-  CLOUDINARY_CLOUD_NAME: Joi.string().required(),
-  CLOUDINARY_API_KEY: Joi.string().required(),
-  CLOUDINARY_API_SECRET: Joi.string().required(),
+  // CLOUDINARY_CLOUD_NAME: Joi.string().required(),
+  // CLOUDINARY_API_KEY: Joi.string().required(),
+  // CLOUDINARY_API_SECRET: Joi.string().required(),
 
   // Redis
   REDIS_HOST: Joi.string().default('localhost'),
   REDIS_PORT: Joi.number().default(6379),
   REDIS_PASSWORD: Joi.string().optional(),
+  REDIS_TLS: Joi.boolean().default(true),
+  REDIS_URL: Joi.string().uri().default('rediss://localhost:6379'),
 
   // CORS
   CORS_ORIGINS: Joi.string().default('http://localhost:3000'),

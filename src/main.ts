@@ -65,16 +65,12 @@ async function bootstrap() {
     .setDescription('Dating App Backend API Documentation')
     .setVersion('1.0')
     .addBearerAuth()
-    .addTag('auth', 'Authentication endpoints')
-    .addTag('users', 'User management endpoints')
-    .addTag('matches', 'Matching system endpoints')
-    .addTag('messages', 'Messaging system endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
 
-  const port = configService.get('PORT', 3000);
+  const port = configService.get('PORT', 5000);
   await app.listen(port, '0.0.0.0');
 
   logger.log(`🚀 Application is running on: http://localhost:${port}`);
@@ -109,4 +105,3 @@ if (
     process.exit(1);
   });
 }
-bootstrap();

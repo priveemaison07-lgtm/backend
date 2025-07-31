@@ -84,8 +84,8 @@ export class UserService {
 
     if (!preferences) {
       preferences = this.userPreferenceRepository.create({
-        userId,
         ...updatePreferencesDto,
+        user,
       });
     } else {
       Object.assign(preferences, updatePreferencesDto);

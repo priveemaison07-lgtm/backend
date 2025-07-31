@@ -6,7 +6,7 @@ export const databaseConfig = registerAs('database', () => ({
   port: parseInt(process.env.DB_PORT!, 10) || 5432,
   username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD || 'password',
-  database: process.env.DB_NAME || 'wallet_system',
+  database: process.env.DB_NAME || 'dating_app',
   ssl:
     process.env.NODE_ENV === 'production'
       ? { rejectUnauthorized: false }
@@ -21,7 +21,7 @@ export const AppDataSource = new DataSource({
   port: parseInt(process.env.DB_PORT!, 10) || 5432,
   username: process.env.DB_USERNAME || 'postgres',
   password: process.env.DB_PASSWORD || 'password',
-  database: process.env.DB_NAME || 'wallet_system',
+  database: process.env.DB_NAME || 'dating_app',
   ssl:
     process.env.NODE_ENV === 'production'
       ? { rejectUnauthorized: false }

@@ -11,6 +11,7 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { Gender } from '../entities/user.entity';
+import { GenderInterest } from '../entities/user-preference.entity';
 
 export class UpdateUserPreferenceDto {
   @ApiProperty({
@@ -22,8 +23,8 @@ export class UpdateUserPreferenceDto {
   @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
-  @IsEnum(Gender, { each: true })
-  interestedIn?: Gender[];
+  @IsEnum(GenderInterest, { each: true })
+  interestedIn?: GenderInterest[];
 
   @ApiProperty({ example: 18, minimum: 18, maximum: 100, required: false })
   @IsOptional()

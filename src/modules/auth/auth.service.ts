@@ -27,17 +27,21 @@ import { OtpType } from '../../otp/entities/otp.entity';
 
 @Injectable()
 export class AuthService {
+  private googleClient: OAuth2Client;
   constructor(
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    private googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID),
     @InjectRepository(UserPreference)
     private userPreferenceRepository: Repository<UserPreference>,
     private jwtService: JwtService,
     private configService: ConfigService,
     private otpService: OtpService,
     private redisService: RedisService,
-  ) {}
+  ) {
+    this.googleClient = new OAuth2Client(
+      this.configService.get('GOOGLE_CLIENT_ID'),
+    );
+  }
 
   async sendOtp(sendOtpDto: SendOtpDto) {
     const { phoneNumber } = sendOtpDto;
@@ -410,6 +414,7 @@ export class AuthService {
     const payload: JwtPayload = {
       sub: user.id,
       phoneNumber: user.phoneNumber,
+      role: user.role,
       email: user.email,
       isActive: user.isActive,
       isVerified: user.isVerified,
