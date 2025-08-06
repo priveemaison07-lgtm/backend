@@ -10,8 +10,8 @@ import {
   IsString,
   IsBoolean,
 } from 'class-validator';
-import { Gender } from '../entities/user.entity';
-import { GenderInterest } from '../entities/user-preference.entity';
+import { Gender } from '../enums/gender.enum';
+import { GenderInterest } from '../enums/gender-interest.enum';
 
 export class UpdateUserPreferenceDto {
   @ApiProperty({

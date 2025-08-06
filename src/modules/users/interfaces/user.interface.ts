@@ -1,3 +1,5 @@
+import { User } from '../entities/user.entity';
+
 export interface IUser {
   id: string;
   email: string;
@@ -12,4 +14,9 @@ export interface ICreateUser {
   firstName: string;
   lastName: string;
   password: string;
+}
+
+export interface NearbyUser extends User {
+  distance: number;
+  matchPercentage: number;
 }

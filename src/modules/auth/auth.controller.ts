@@ -31,15 +31,15 @@ import { VerifyOtpDto } from './dto/verify.dto';
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  @Post('send-otp')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Send OTP for registration' })
-  @ApiResponse({ status: 200, description: 'OTP sent successfully' })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 409, description: 'User already exists' })
-  async sendRegistrationOtp(@Body() sendOtpDto: SendOtpDto) {
-    return await this.authService.sendOtp(sendOtpDto);
-  }
+  // @Post('send-otp')
+  // @HttpCode(HttpStatus.OK)
+  // @ApiOperation({ summary: 'Send OTP for registration' })
+  // @ApiResponse({ status: 200, description: 'OTP sent successfully' })
+  // @ApiResponse({ status: 400, description: 'Bad request' })
+  // @ApiResponse({ status: 409, description: 'User already exists' })
+  // async sendRegistrationOtp(@Body() sendOtpDto: SendOtpDto) {
+  //   return await this.authService.sendOtp(sendOtpDto);
+  // }
 
   @Post('register')
   @ApiOperation({ summary: 'Register a new user' })
@@ -102,6 +102,7 @@ export class AuthController {
   }
 
   @Post('logout')
+  @HttpCode(HttpStatus.OK)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout user and invalidate token' })
