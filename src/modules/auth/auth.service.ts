@@ -11,19 +11,20 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { OAuth2Client } from 'google-auth-library';
 import * as appleSignin from 'apple-signin-auth';
 import { Repository } from 'typeorm';
-import { User, AuthProvider } from '../../modules/users/entities/user.entity';
+import { User } from '../../modules/users/entities/user.entity';
+import { AuthProvider } from '../../modules/users/enums/auth-provider.enum';
 import { UserPreference } from '../../modules/users/entities/user-preference.entity';
-import { OtpService } from '../../otp/otp.service';
+import { OtpService } from '../otp/otp.service';
 import { JwtPayload } from './interfaces/jwt-payload.interface';
 import { hashSync, genSaltSync, compareSync } from 'bcrypt';
-import { RedisService } from '../../redis/redis.service';
+import { RedisService } from '../redis/redis.service';
 import { SendOtpDto } from './dto/sendOtp.dto';
 import { LoginUserDto } from './dto/login.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password';
 import { RegisterUserDto } from './dto/register.dto';
 import { VerifyOtpDto } from './dto/verify.dto';
-import { OtpType } from '../../otp/entities/otp.entity';
+import { OtpType } from '../otp/entities/otp.entity';
 
 @Injectable()
 export class AuthService {
@@ -43,50 +44,26 @@ export class AuthService {
     );
   }
 
-  async sendOtp(sendOtpDto: SendOtpDto) {
-    const { phoneNumber } = sendOtpDto;
+  // async sendOtp(sendOtpDto: SendOtpDto) {
+  //   const { phoneNumber } = sendOtpDto;
 
-    // Check if user already exists
-    const existingUser = await this.userRepository.findOne({
-      where: { phoneNumber },
-    });
+  //   // Check if user already exists
+  //   const existingUser = await this.userRepository.findOne({
+  //     where: { phoneNumber },
+  //   });
 
-    if (existingUser) {
-      throw new ConflictException('User already exists with this phone number');
-    }
+  //   if (existingUser) {
+  //     throw new ConflictException('User already exists with this phone number');
+  //   }
 
-    // Send OTP
-    await this.otpService.sendOtp(phoneNumber, OtpType.REGISTRATION);
+  //   // Send OTP
+  //   await this.otpService.sendOtp(phoneNumber, OtpType.REGISTRATION);
 
-    return {
-      message: 'OTP sent successfully',
-      phoneNumber,
-    };
-  }
-
-  async verifyOtp(verifyOtpDto: VerifyOtpDto) {
-    const { phoneNumber, otp } = verifyOtpDto;
-
-    // Verify OTP
-    const isValid = await this.otpService.verifyOtp(
-      phoneNumber,
-      otp,
-      OtpType.REGISTRATION,
-    );
-
-    if (!isValid) {
-      throw new BadRequestException('Invalid or expired OTP');
-    }
-
-    // Clean up used + expired OTPs after successful verification
-    await this.otpService.cleanupExpiredOtps(phoneNumber, OtpType.REGISTRATION);
-
-    return {
-      message: 'OTP verified successfully',
-      phoneNumber,
-      canProceed: true,
-    };
-  }
+  //   return {
+  //     message: 'OTP sent successfully',
+  //     phoneNumber,
+  //   };
+  // }
 
   async register(registerUserDto: RegisterUserDto) {
     const {
@@ -98,10 +75,9 @@ export class AuthService {
       phoneNumber,
     } = registerUserDto;
 
+    // Password confirmation
     if (password !== confirmPassword) {
-      throw new BadRequestException(
-        'Password and confirm password do not match.',
-      );
+      throw new BadRequestException('Passwords do not match.');
     }
 
     // Check if phone number was verified
@@ -110,13 +86,13 @@ export class AuthService {
       OtpType.REGISTRATION,
     );
 
-    if (!isPhoneVerified) {
-      throw new BadRequestException('Phone number not verified');
+    if (isPhoneVerified) {
+      throw new BadRequestException('Phone number is verified, try to login');
     }
 
     // Check if user already exists
     const existingUser = await this.userRepository.findOne({
-      where: [{ email }, { phoneNumber }],
+      where: [{ email: email.toLowerCase() }, { phoneNumber: phoneNumber }],
     });
 
     if (existingUser) {
@@ -134,33 +110,64 @@ export class AuthService {
     const salt = genSaltSync(10);
     const hashedPassword = hashSync(password, salt);
 
-    // Create user
-    const user = this.userRepository.create({
-      firstName,
-      lastName,
-      email,
-      password: hashedPassword,
+    return await this.userRepository.manager.transaction(async (manager) => {
+      const user = manager.create(User, {
+        firstName: firstName.toLowerCase(),
+        lastName: lastName.toLowerCase(),
+        email: email.toLowerCase(),
+        password: hashedPassword,
+        phoneNumber,
+        authProvider: AuthProvider.PHONE,
+        isVerified: false,
+      });
+
+      const savedUser = await manager.save(user);
+
+      const preferences = manager.create(UserPreference, {
+        userId: savedUser.id,
+      });
+
+      await manager.save(preferences);
+
+      // Send OTP for registration verification
+      await this.otpService.sendOtp(phoneNumber, OtpType.REGISTRATION);
+
+      const accessToken = this.generateToken(savedUser);
+
+      return {
+        message:
+          'Account created successfully. Please check your phone for verification code.',
+        accessToken,
+      };
+    });
+  }
+
+  async verifyOtp(verifyOtpDto: VerifyOtpDto) {
+    const { phoneNumber, otp } = verifyOtpDto;
+
+    const isValid = await this.otpService.verifyOtp(
       phoneNumber,
-      authProvider: AuthProvider.PHONE,
-      isVerified: false,
-    });
+      otp,
+      OtpType.REGISTRATION, // match what was sent
+    );
 
-    const savedUser = await this.userRepository.save(user);
+    if (!isValid) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
 
-    // Create user preferences
-    const preferences = this.userPreferenceRepository.create({
-      userId: savedUser.id,
-    });
+    const user = await this.userRepository.findOneBy({ phoneNumber });
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
 
-    await this.userPreferenceRepository.save(preferences);
+    await this.userRepository.update({ id: user.id }, { isVerified: true });
 
-    // Generate JWT token
-    const accessToken = this.generateToken(savedUser);
+    await this.otpService.cleanupExpiredOtps(phoneNumber, OtpType.REGISTRATION);
 
     return {
-      message:
-        'Account created successfully. Please check your phone for verification code.',
-      accessToken,
+      message: 'OTP verified successfully',
+      phoneNumber,
+      canProceed: true,
     };
   }
 
@@ -168,7 +175,8 @@ export class AuthService {
     const { email, password } = loginDto;
 
     const existingUser = await this.userRepository.findOne({
-      where: { email },
+      where: { email: email.toLowerCase(), isActive: true },
+      relations: ['preferences'],
     });
     if (!existingUser) {
       throw new UnauthorizedException('Invalid credentials');
@@ -196,9 +204,8 @@ export class AuthService {
       throw new NotFoundException('User not found');
     }
 
-    // Update last seen
-    user.lastSeen = new Date();
-    await this.userRepository.save(user);
+    // Update last seen in a transaction
+    await this.userRepository.update({ id: user.id }, { lastSeen: new Date() });
 
     // Generate JWT token
     const accessToken = this.generateToken(user);
@@ -413,11 +420,9 @@ export class AuthService {
   private generateToken(user: User): string {
     const payload: JwtPayload = {
       sub: user.id,
+      email: user.email,
       phoneNumber: user.phoneNumber,
       role: user.role,
-      email: user.email,
-      isActive: user.isActive,
-      isVerified: user.isVerified,
     };
 
     return this.jwtService.sign(payload);

@@ -12,7 +12,7 @@ import {
   Max,
   IsBoolean,
 } from 'class-validator';
-import { Gender } from '../entities/user.entity';
+import { Gender } from '../enums/gender.enum';
 
 export class UpdateUserDto {
   @ApiProperty({ example: 'John', required: false })

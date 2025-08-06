@@ -18,8 +18,10 @@ import { HealthModule } from './modules/health/health.module';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/users/users.module';
-import { UploadModule } from './upload/upload.module';
-import { OtpModule } from './otp/otp.module';
+import { UploadModule } from './modules/upload/upload.module';
+import { RedisModule } from './modules/redis/redis.module';
+import { GeocodingModule } from './modules/geocoding/geocoding.module';
+import { OtpModule } from './modules/otp/otp.module';
 import { MatchmakingModule } from './modules/matchmaking/matchmaking.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { databaseConfig } from './config/database/database.config';
@@ -109,6 +111,8 @@ import { jwtConfig } from './config/jwt.config';
     HealthModule,
     UploadModule,
     UserModule,
+    GeocodingModule,
+    RedisModule,
     OtpModule,
     AuthModule,
     MatchmakingModule,

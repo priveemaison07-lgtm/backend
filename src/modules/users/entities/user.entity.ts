@@ -11,26 +11,11 @@ import {
 } from 'typeorm';
 import { Exclude } from 'class-transformer';
 import { UserPreference } from './user-preference.entity';
+import { UserRole } from '../enums/role.enum';
+import { AuthProvider } from '../enums/auth-provider.enum';
 // import { Match } from '../../matching/entities/match.entity';
 // import { Like } from '../../matching/entities/like.entity';
 // import { Message } from '../../chat/entities/message.entity';
-
-export enum Gender {
-  MALE = 'male',
-  FEMALE = 'female',
-  OTHER = 'other',
-}
-
-export enum AuthProvider {
-  PHONE = 'phone',
-  GOOGLE = 'google',
-  APPLE = 'apple',
-}
-
-export enum UserRole {
-  USER = 'user',
-  ADMIN = 'admin',
-}
 
 @Entity('users')
 @Index(['email'], { unique: true })

@@ -10,6 +10,10 @@ import { UserPreference } from './entities/user-preference.entity';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
 import { UpdateUserPreferenceDto } from './dto/user-preference.dto';
+import { NearbyUser } from './interfaces/user.interface';
+import { GenderInterest } from './enums/gender-interest.enum';
+import { Gender } from './enums/gender.enum';
+import { GeocodingService } from '../geocoding/geocoding.service';
 
 @Injectable()
 export class UserService {
@@ -18,6 +22,7 @@ export class UserService {
     private userRepository: Repository<User>,
     @InjectRepository(UserPreference)
     private userPreferenceRepository: Repository<UserPreference>,
+    private geocodingService: GeocodingService,
   ) {}
 
   async findById(id: string): Promise<User> {
@@ -58,16 +63,37 @@ export class UserService {
       }
     }
 
+    const completion = this.calculateProfileCompletion(user);
+    user.isProfileComplete = completion >= 50;
     return await this.userRepository.save(user);
   }
+
   async updateLocation(
     userId: string,
     updateLocationDto: UpdateLocationDto,
   ): Promise<User> {
     const user = await this.findById(userId);
 
-    // Update location fields
-    Object.assign(user, updateLocationDto);
+    // Set the location string
+    user.location = updateLocationDto.location;
+
+    // If coordinates are provided, use them; otherwise geocode the location
+    if (updateLocationDto.latitude && updateLocationDto.longitude) {
+      user.latitude = updateLocationDto.latitude;
+      user.longitude = updateLocationDto.longitude;
+      user.city = updateLocationDto.city;
+      user.country = updateLocationDto.country;
+    } else {
+      // Geocode the location to get coordinates
+      const geocodingResult = await this.geocodingService.geocode(
+        updateLocationDto.location,
+      );
+
+      user.latitude = geocodingResult.latitude;
+      user.longitude = geocodingResult.longitude;
+      user.city = geocodingResult.city || updateLocationDto.city;
+      user.country = geocodingResult.country || updateLocationDto.country;
+    }
 
     return await this.userRepository.save(user);
   }
@@ -164,51 +190,97 @@ export class UserService {
     await this.userRepository.update(userId, { lastSeen: new Date() });
   }
 
-  async getNearbyUsers(userId: string, limit: number = 10): Promise<User[]> {
-    const user = await this.findById(userId);
+  async getNearbyUsers(
+    location: string | { latitude: number; longitude: number },
+    radius: number = 10,
+    maxResults: number = 20,
+    userId?: string,
+    filters?: { minAge?: number; maxAge?: number; maxDistance?: number }, // Optional filters for user discovery
+  ): Promise<NearbyUser[]> {
+    let latitude: number;
+    let longitude: number;
 
-    if (!user.latitude || !user.longitude || !user.preferences) {
-      return [];
+    if (typeof location === 'string') {
+      const coords = await this.geocodingService.geocode(location);
+      latitude = coords.latitude;
+      longitude = coords.longitude;
+    } else {
+      latitude = location.latitude;
+      longitude = location.longitude;
     }
 
-    const { preferences } = user;
-    const currentYear = new Date().getFullYear();
+    if (!latitude || !longitude || isNaN(latitude) || isNaN(longitude)) {
+      throw new Error('Invalid coordinates provided');
+    }
 
-    // Calculate age range based on birth year
-    const maxBirthYear = currentYear - preferences.minAge;
-    const minBirthYear = currentYear - preferences.maxAge;
+    const earthRadius = 6371;
+    const latChange = (radius / earthRadius) * (180 / Math.PI);
+    const lonChange =
+      ((radius / earthRadius) * (180 / Math.PI)) /
+      Math.cos((latitude * Math.PI) / 180);
 
-    // This is a simplified query. In production, you'd use a proper geo-spatial query
-    const nearbyUsers = await this.userRepository
+    const minLat = latitude - latChange;
+    const maxLat = latitude + latChange;
+    const minLon = longitude - lonChange;
+    const maxLon = longitude + lonChange;
+
+    // Query for nearby users within bounding box
+    const qb = await this.userRepository
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.preferences', 'preferences')
-      .where('user.id != :userId', { userId })
-      .andWhere('user.isActive = :isActive', { isActive: true })
-      .andWhere('user.gender IN (:...interestedIn)', {
-        interestedIn: preferences.interestedIn,
+      .where('user.isActive = :isActive', { isActive: true })
+      .andWhere('user.isProfileComplete = :isProfileComplete', {
+        isProfileComplete: true,
       })
-      .andWhere(
-        'YEAR(user.dateOfBirth) BETWEEN :minBirthYear AND :maxBirthYear',
-        {
-          minBirthYear,
-          maxBirthYear,
-        },
-      )
-      .andWhere('user.latitude IS NOT NULL')
-      .andWhere('user.longitude IS NOT NULL')
-      .limit(limit)
-      .getMany();
+      .andWhere('user.latitude BETWEEN :minLat AND :maxLat', { minLat, maxLat })
+      .andWhere('user.longitude BETWEEN :minLon AND :maxLon', {
+        minLon,
+        maxLon,
+      });
 
-    // Filter by distance (simplified calculation)
-    return nearbyUsers.filter((nearbyUser) => {
-      const distance = this.calculateDistance(
-        user.latitude!,
-        user.longitude!,
-        nearbyUser.latitude!,
-        nearbyUser.longitude!,
-      );
-      return distance <= preferences.maxDistance;
-    });
+    // Age filtering
+    if (filters?.minAge) {
+      qb.andWhere('preferences.age >= :minAge', { minAge: filters.minAge });
+    }
+    if (filters?.maxAge) {
+      qb.andWhere('preferences.age <= :maxAge', { maxAge: filters.maxAge });
+    }
+
+    const nearbyUsers = await qb.take(maxResults * 2).getMany();
+
+    const candidatesWithCoords = nearbyUsers.filter(
+      (u) =>
+        u.latitude !== undefined &&
+        u.longitude !== undefined &&
+        !isNaN(Number(u.latitude)) &&
+        !isNaN(Number(u.longitude)),
+    ) as User[];
+
+    const currentUser = userId ? await this.findById(userId) : null;
+    const withDistance: NearbyUser[] = candidatesWithCoords
+      .map((user) => {
+        const dist = this.calculateDistance(
+          latitude,
+          longitude,
+          Number(user.latitude),
+          Number(user.longitude),
+        );
+        const matchPercentage = currentUser
+          ? this.calculateMatchPercentage(currentUser, user)
+          : 0;
+        return {
+          ...user,
+          fullName: `${user.firstName} ${user.lastName}`,
+          distance: dist,
+          matchPercentage,
+          isOnline: this.isOnline(user.lastSeen ?? null),
+        } as NearbyUser;
+      })
+      .filter((u) => u.distance <= radius)
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, maxResults);
+
+    return withDistance;
   }
 
   private calculateDistance(
@@ -227,10 +299,99 @@ export class UserService {
         Math.sin(dLon / 2) *
         Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distance = R * c;
-    return distance;
+    return R * c;
   }
 
+  private isOnline(lastSeen: Date | null): boolean {
+    if (!lastSeen) return false;
+    const now = new Date();
+    const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000); // 5 minutes
+    return lastSeen > fiveMinutesAgo;
+  }
+
+  private mapGenderToInterest(gender: Gender): GenderInterest {
+    switch (gender) {
+      case Gender.MALE:
+        return GenderInterest.MALE;
+      case Gender.FEMALE:
+        return GenderInterest.FEMALE;
+      case Gender.OTHER:
+        return GenderInterest.BOTH; // Map OTHER to BOTH as a reasonable fallback
+      default:
+        // This should never happen due to exhaustive switch, but TypeScript requires a default
+        throw new Error(`Unsupported gender value: ${gender}`);
+    }
+  }
+
+  private calculateProfileCompletion(user: User): number {
+    let completed = 0;
+    const total = 6; // Display name, DOB, gender, location, photos, bio
+
+    if (user.firstName && user.lastName) completed++; // Display name
+    if (user.preferences?.dateOfBirth) completed++; // DOB
+    if (user.preferences?.gender) completed++; // Gender
+    if (user.latitude && user.longitude) completed++; // Location
+    if (user.photos?.length >= 2) completed++; // Photos (minimum 2)
+    if (user.bio) completed++; // Bio
+
+    return Math.round((completed / total) * 100);
+  }
+
+  private calculateMatchPercentage(user: User, otherUser: User): number {
+    let score = 0;
+    const maxScore = 100;
+
+    // Compare gender interest
+    if (
+      user.preferences?.interestedIn &&
+      otherUser.preferences?.gender &&
+      (user.preferences.interestedIn.includes(GenderInterest.BOTH) ||
+        user.preferences.interestedIn.includes(
+          this.mapGenderToInterest(otherUser.preferences.gender),
+        ))
+    ) {
+      score += 20;
+    }
+
+    // Compare age (within preference range)
+    const otherAge = otherUser.preferences?.age ?? 0; // Default to 0 if null
+    if (
+      otherAge !== undefined &&
+      user.preferences?.minAge !== undefined &&
+      user.preferences?.maxAge !== undefined &&
+      otherAge >= user.preferences.minAge &&
+      otherAge <= user.preferences.maxAge
+    ) {
+      score += 20;
+    }
+
+    // Compare interests (simple overlap)
+    if (user.preferences?.interests && otherUser.preferences?.interests) {
+      const commonInterests = user.preferences.interests.filter((interest) =>
+        otherUser.preferences?.interests.includes(interest),
+      ).length;
+      score +=
+        (commonInterests /
+          Math.max(user.preferences.interests.length || 1, 1)) *
+        30;
+    }
+
+    // Compare location distance (within maxDistance)
+    const distance = this.calculateDistance(
+      user.latitude || 0,
+      user.longitude || 0,
+      otherUser.latitude || 0,
+      otherUser.longitude || 0,
+    );
+    if (
+      user.preferences?.maxDistance !== undefined &&
+      distance <= user.preferences.maxDistance
+    ) {
+      score += 30;
+    }
+
+    return Math.min(Math.round((score / maxScore) * 100), 100);
+  }
   private deg2rad(deg: number): number {
     return deg * (Math.PI / 180);
   }

@@ -7,13 +7,9 @@ import {
   OneToOne,
   JoinColumn,
 } from 'typeorm';
-import { User, Gender } from './user.entity';
-
-export enum GenderInterest {
-  MALE = 'male',
-  FEMALE = 'female',
-  BOTH = 'both',
-}
+import { User } from './user.entity';
+import { Gender } from '../enums/gender.enum';
+import { GenderInterest } from '../enums/gender-interest.enum';
 
 @Entity('user_preferences')
 export class UserPreference {
@@ -32,6 +28,7 @@ export class UserPreference {
     enum: GenderInterest,
     enumName: 'gender_interest_enum',
     array: true,
+    default: [],
   })
   interestedIn: GenderInterest[];
 

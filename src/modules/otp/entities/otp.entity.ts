@@ -7,7 +7,7 @@ import {
 
 export enum OtpType {
   REGISTRATION = 'registration',
-  LOGIN = 'login',
+  ACCOUNT_VERIFICATION = 'account_verification',
   PASSWORD_RESET = 'password_reset',
 }
 

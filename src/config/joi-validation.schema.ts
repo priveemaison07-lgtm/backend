@@ -20,6 +20,8 @@ export const JoiValidationSchema = Joi.object({
   // Twilio
   TWILIO_ACCOUNT_SID: Joi.string().required(),
   TWILIO_AUTH_TOKEN: Joi.string().required(),
+  TWILIO_MESSAGING_SERVICE_SID: Joi.string().required(),
+  TWILIO_FROM_NUMBER: Joi.string().required(),
 
   // Google
   // GOOGLE_CLIENT_ID: Joi.string().required(),
@@ -47,4 +49,7 @@ export const JoiValidationSchema = Joi.object({
   // OTP
   OTP_EXPIRY_MINUTES: Joi.number().default(10),
   OTP_LENGTH: Joi.number().default(6),
+
+  // Google Map
+  GOOGLE_MAPS_API_KEY: Joi.string().required(),
 });
