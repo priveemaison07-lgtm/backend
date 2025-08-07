@@ -38,9 +38,9 @@ export class OtpService {
     }
   }
 
-  async sendOtp(phoneNumber: string, type: OtpType): Promise<void> {
+  async sendOtp(phoneNumber: string, type: OtpType): Promise<string> {
     // Generate 6-digit OTP
-    const code = Math.floor(1000 + Math.random() * 9000).toString();
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Set expiration time (5 minutes from now)
     const expiresAt = new Date();
@@ -64,6 +64,7 @@ export class OtpService {
 
     // Send SMS
     await this.sendSms(phoneNumber, code, type);
+    return code;
   }
 
   async verifyOtp(

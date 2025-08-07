@@ -130,7 +130,10 @@ export class AuthService {
       await manager.save(preferences);
 
       // Send OTP for registration verification
-      await this.otpService.sendOtp(phoneNumber, OtpType.REGISTRATION);
+      const otp = await this.otpService.sendOtp(
+        phoneNumber,
+        OtpType.REGISTRATION,
+      );
 
       const accessToken = this.generateToken(savedUser);
 
@@ -138,6 +141,7 @@ export class AuthService {
         message:
           'Account created successfully. Please check your phone for verification code.',
         accessToken,
+        otp,
       };
     });
   }
