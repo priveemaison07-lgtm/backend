@@ -20,8 +20,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/users/users.module';
 import { UploadModule } from './upload/upload.module';
 import { OtpModule } from './otp/otp.module';
-// import { MatchingModule } from './matching/matching.module';
-// import { ChatModule } from './chat/chat.module';
+import { MatchmakingModule } from './modules/matchmaking/matchmaking.module';
+import { ChatModule } from './modules/chat/chat.module';
 import { databaseConfig } from './config/database/database.config';
 import { redisConfig } from './config/redis/redis.config';
 import { winstonConfig } from './config/logger/wiston.config';
@@ -111,6 +111,8 @@ import { jwtConfig } from './config/jwt.config';
     UserModule,
     OtpModule,
     AuthModule,
+    MatchmakingModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [
