@@ -10,7 +10,10 @@ import {
   Request,
   HttpCode,
   HttpStatus,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
@@ -24,13 +27,18 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ChatService } from './chat.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { CreateConversationDto } from './dto/create-conversation.dto';
+import { UploadService } from '../upload/upload.service';
+import { MessageType } from './entities/message.entity';
 
 @ApiTags('Chat')
 @ApiBearerAuth()
 @UseGuards(JwtAuthGuard)
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly uploadService: UploadService,
+  ) {}
 
   @Post('conversations')
   @HttpCode(HttpStatus.CREATED)
@@ -120,6 +128,34 @@ export class ChatController {
     @Body('messageIds') messageIds: string[],
   ) {
     return this.chatService.markMessagesAsRead(conversationId, req.user.id, messageIds);
+  }
+
+  @Post('upload-image')
+  @UseInterceptors(FileInterceptor('image'))
+  @ApiOperation({ summary: 'Upload an image for chat' })
+  @ApiResponse({ status: 201, description: 'Image uploaded successfully' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  async uploadChatImage(
+    @Request() req,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('conversationId') conversationId: string,
+  ) {
+    const uploadResult = await this.uploadService.uploadImage(file, 'chat-images');
+
+    // Create an image message
+    const createMessageDto: CreateMessageDto = {
+      conversationId,
+      messageType: MessageType.IMAGE,
+      content: uploadResult.url,
+      metadata: {
+        fileName: file.originalname,
+        fileSize: file.size,
+        mimeType: file.mimetype,
+        imageUrl: uploadResult.url,
+      },
+    };
+
+    return this.chatService.createMessage(req.user.id, createMessageDto);
   }
 
   @Delete('messages/:messageId')

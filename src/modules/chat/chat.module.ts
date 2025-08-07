@@ -10,12 +10,14 @@ import { User } from '../users/entities/user.entity';
 import { Match } from '../matchmaking/entities/match.entity';
 import { UserModule } from '../users/users.module';
 import { MatchmakingModule } from '../matchmaking/matchmaking.module';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Conversation, Message, MessageStatus]),
+    TypeOrmModule.forFeature([Conversation, Message, MessageStatus, User, Match]),
     UserModule,
     MatchmakingModule,
+    UploadModule,
   ],
   controllers: [ChatController],
   providers: [ChatService, ChatGateway],

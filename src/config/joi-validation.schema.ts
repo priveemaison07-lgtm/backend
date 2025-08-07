@@ -17,11 +17,11 @@ export const JoiValidationSchema = Joi.object({
   JWT_SECRET: Joi.string().required(),
   JWT_EXPIRATION: Joi.string().default('7d'),
 
-  // Twilio
-  TWILIO_ACCOUNT_SID: Joi.string().required(),
-  TWILIO_AUTH_TOKEN: Joi.string().required(),
-  TWILIO_MESSAGING_SERVICE_SID: Joi.string().required(),
-  TWILIO_FROM_NUMBER: Joi.string().required(),
+  // Twilio (optional for development)
+  TWILIO_ACCOUNT_SID: Joi.string().optional().allow(''),
+  TWILIO_AUTH_TOKEN: Joi.string().optional().allow(''),
+  TWILIO_MESSAGING_SERVICE_SID: Joi.string().optional().allow(''),
+  TWILIO_FROM_NUMBER: Joi.string().optional().allow(''),
 
   // Google
   // GOOGLE_CLIENT_ID: Joi.string().required(),
@@ -50,6 +50,6 @@ export const JoiValidationSchema = Joi.object({
   OTP_EXPIRY_MINUTES: Joi.number().default(10),
   OTP_LENGTH: Joi.number().default(6),
 
-  // Google Map
-  GOOGLE_MAPS_API_KEY: Joi.string().required(),
+  // Google Map (optional for development)
+  GOOGLE_MAPS_API_KEY: Joi.string().optional().allow(''),
 });
