@@ -13,6 +13,7 @@ export const JoiValidationSchema = Joi.object({
   DB_PASSWORD: Joi.string().required(),
   DB_NAME: Joi.string().required(),
 
+  
   // JWT
   JWT_SECRET: Joi.string().required(),
   JWT_EXPIRATION: Joi.string().default('7d'),
