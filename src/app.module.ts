@@ -32,10 +32,20 @@ import { HttpExceptionFilter } from './common/filters/exception.filter';
 import { ValidationPipe422 } from './common/pipe/validation.pipe';
 import { TransformerInterceptor } from './common/interceptor/transformer.interceptor';
 import { jwtConfig } from './config/jwt.config';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
 
+// 01
+// eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI0NDc3NjBkNy03YzY1LTQ5OWMtOGU4NS01ZjAxZmJmM2E4MDYiLCJlbWFpbCI6Im9iYWRleWkwMUBnbWFpbC5jb20iLCJwaG9uZU51bWJlciI6IisyMzQ4MTAxMjI5MTMxIiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NTQ2ODIyMjAsImV4cCI6MTc1NDc2ODYyMH0.9Yytj7OvhhrENmkr09Gm4bhCLmmAV9SRMkkSP6AdV2I
+// 04
+// eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwYWMxNzQyNS0wNTkxLTRjM2ItYWE4OC00ZjAxMTk3MzlkODYiLCJlbWFpbCI6Im9iYWRleWkwNEBnbWFpbC5jb20iLCJwaG9uZU51bWJlciI6IisyMzQ4MTAwMjI4MzE0Iiwicm9sZSI6InVzZXIiLCJpYXQiOjE3NTQ2ODI0NjUsImV4cCI6MTc1NDc2ODg2NX0.UUWdfqiGBRGr3ZKsiKdgJn0yFUBkEMHzujbi0qv7ecw
 @Module({
   imports: [
     // Configuration
+        ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', 'public'),
+      serveRoot: '/',
+    }),
     ConfigModule.forRoot({
       isGlobal: true,
       validationSchema: JoiValidationSchema,
@@ -50,7 +60,7 @@ import { jwtConfig } from './config/jwt.config';
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
-        type: 'postgres', // or 'mysql'
+        type: 'postgres',
         host: configService.get('database.host'),
         port: configService.get('database.port'),
         username: configService.get('database.username'),
@@ -59,7 +69,6 @@ import { jwtConfig } from './config/jwt.config';
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: configService.get('database.synchronize'),
         logging: configService.get('database.logging'),
-        // Connection pool settings
         extra: {
           connectionLimit: 20,
           acquireTimeout: 60000,
@@ -74,17 +83,58 @@ import { jwtConfig } from './config/jwt.config';
       inject: [ConfigService],
       isGlobal: true,
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService) => ({
-        store: await redisStore({
-          socket: {
-            host: configService.get('redis.host'),
-            port: configService.get('redis.port'),
-            tls: configService.get('redis.tls'),
-          },
-          password: configService.get('redis.password'),
-        }),
-        ttl: 300, // 5 minutes default TTL
-      }),
+      useFactory: async (configService: ConfigService) => {
+        try {
+          const store = await redisStore({
+            socket: {
+              host: configService.get('redis.host'),
+              port: configService.get('redis.port'),
+              tls: configService.get('redis.tls'),
+              rejectUnauthorized: false,
+              reconnectStrategy: (retries: number) => {
+                console.log(`Redis reconnection attempt ${retries}`);
+                if (retries > 10) {
+                  console.log('Redis max reconnection attempts reached');
+                  return false; 
+                }
+                return Math.min(retries * 100, 3000); 
+              },
+              connectTimeout: 10000,
+            },
+            password: configService.get('redis.password'),
+          });
+
+          // Handle Redis client errors to prevent crashes
+          if (store && (store as any).client) {
+            (store as any).client.on('error', (error: Error) => {
+              console.error('Redis Client Error:', error.message);
+            });
+
+            (store as any).client.on('connect', () => {
+              console.log('Redis Cache connected successfully');
+            });
+
+            (store as any).client.on('disconnect', () => {
+              console.log('Redis Cache disconnected');
+            });
+
+            (store as any).client.on('reconnecting', () => {
+              console.log('Redis Cache reconnecting...');
+            });
+          }
+
+          return {
+            store,
+            ttl: 300,
+          };
+        } catch (error) {
+          console.error('Failed to initialize Redis cache:', error.message);
+          return {
+            store: 'memory',
+            ttl: 300,
+          };
+        }
+      },
     }),
     JwtModule.registerAsync({
       imports: [ConfigModule],

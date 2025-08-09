@@ -8,8 +8,31 @@ import helmet from 'helmet';
 import compression from 'compression';
 import cluster from 'cluster';
 import * as os from 'os';
+import { join } from 'path';
 
 async function bootstrap() {
+  // Global error handlers to prevent crashes
+  process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    if (error.message?.includes('ECONNRESET') || error.message?.includes('Redis')) {
+      console.log('Redis connection error handled, continuing...');
+      return;
+    }
+    process.exit(1);
+  });
+
+  process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    
+    if (reason && typeof reason === 'object' && 'message' in reason) {
+      const message = (reason as Error).message;
+      if (message?.includes('ECONNRESET') || message?.includes('Redis')) {
+        console.log('Redis connection rejection handled, continuing...');
+        return;
+      }
+    }
+  });
+
   const app = await NestFactory.create(AppModule, {
     bufferLogs: true,
   });
@@ -24,7 +47,21 @@ async function bootstrap() {
         directives: {
           defaultSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
-          scriptSrc: ["'self'"],
+          scriptSrc: [
+            "'self'", 
+            "'unsafe-inline'",
+            "https://cdn.socket.io",
+            "https://cdnjs.cloudflare.com",
+            "https://unpkg.com",
+            "https://cdn.jsdelivr.net"
+          ],
+          connectSrc: [
+            "'self'", 
+            "ws://localhost:5000",
+            "wss://localhost:5000",
+            "http://localhost:5000",
+            "https://localhost:5000"
+          ],
           imgSrc: ["'self'", 'data:', 'https:'],
         },
       },
@@ -74,6 +111,7 @@ async function bootstrap() {
   await app.listen(port, '0.0.0.0');
 
   logger.log(`🚀 Application is running on: http://localhost:${port}`);
+  logger.log(`📁 Static files served from: http://localhost:${port}/socket-test.html`); // ADD THIS LOG
   logger.log(`Swagger documentation: http://localhost:${port}/api/docs`);
   logger.log(`🔧 Environment: ${configService.get('NODE_ENV', 'development')}`);
   logger.log(`⚡ Worker PID: ${process.pid}`);

@@ -31,7 +31,6 @@ export class ChatService {
       throw new BadRequestException('Cannot create conversation with yourself');
     }
 
-    // Check if users are matched
     const match = await this.matchRepository.findOne({
       where: [
         { user1Id: userId, user2Id: participantId, status: MatchStatus.ACTIVE },
@@ -43,7 +42,6 @@ export class ChatService {
       throw new ForbiddenException('Cannot create conversation without a match');
     }
 
-    // Check if conversation already exists
     const existingConversation = await this.conversationRepository.findOne({
       where: [
         { participant1Id: userId, participant2Id: participantId },
@@ -55,7 +53,6 @@ export class ChatService {
       return existingConversation;
     }
 
-    // Ensure consistent ordering (smaller UUID first)
     const [participant1Id, participant2Id] = [userId, participantId].sort();
 
     const conversation = this.conversationRepository.create({
@@ -66,7 +63,6 @@ export class ChatService {
 
     const savedConversation = await this.conversationRepository.save(conversation);
 
-    // Update match to indicate conversation started
     await this.matchRepository.update(match.id, { isConversationStarted: true });
 
     return savedConversation;
@@ -96,7 +92,6 @@ export class ChatService {
       throw new NotFoundException('Conversation not found');
     }
 
-    // Check if user is participant
     if (conversation.participant1Id !== userId && conversation.participant2Id !== userId) {
       throw new ForbiddenException('Access denied to this conversation');
     }
@@ -105,60 +100,60 @@ export class ChatService {
   }
 
   async createMessage(userId: string, createMessageDto: CreateMessageDto): Promise<Message> {
-    const { conversationId, content, messageType = MessageType.TEXT, replyToMessageId, metadata } = createMessageDto;
+  const { conversationId, content, replyToMessageId, metadata } = createMessageDto;
+  
+  const messageType = createMessageDto.messageType || MessageType.TEXT;
 
-    // Verify conversation exists and user is participant
-    const conversation = await this.getConversationById(conversationId, userId);
+  const conversation = await this.getConversationById(conversationId, userId);
 
-    // Create message
-    const message = this.messageRepository.create({
-      conversationId,
-      senderId: userId,
-      content,
-      messageType,
-      replyToMessageId,
-      metadata,
-      status: MessageStatusEnum.SENT,
-    });
+  const message = this.messageRepository.create({
+    conversationId,
+    senderId: userId,
+    messageType: messageType as MessageType,
+    content,
+    replyToMessageId,
+    metadata,
+    status: MessageStatusEnum.SENT,
+  });
 
-    const savedMessage = await this.messageRepository.save(message);
+  const savedMessage = await this.messageRepository.save(message);
 
-    // Update conversation last message info
-    await this.conversationRepository.update(conversationId, {
-      lastMessageId: savedMessage.id,
-      lastMessageAt: savedMessage.createdAt,
-    });
 
-    // Update unread counts
-    const otherParticipantId = conversation.getOtherParticipant(userId);
-    if (conversation.participant1Id === otherParticipantId) {
-      await this.conversationRepository.increment(
-        { id: conversationId },
-        'participant1UnreadCount',
-        1
-      );
-    } else {
-      await this.conversationRepository.increment(
-        { id: conversationId },
-        'participant2UnreadCount',
-        1
-      );
-    }
+  await this.conversationRepository.update(conversationId, {
+    lastMessageId: savedMessage.id,
+    lastMessageAt: savedMessage.createdAt,
+  });
 
-    // Create message status for the recipient
-    await this.messageStatusRepository.save({
-      messageId: savedMessage.id,
-      userId: otherParticipantId,
-      status: MessageReadStatus.DELIVERED,
-    });
-
-    const messageWithRelations = await this.messageRepository.findOne({
-      where: { id: savedMessage.id },
-      relations: ['sender', 'replyToMessage'],
-    });
-
-    return messageWithRelations!;
+  // Update unread counts
+  const otherParticipantId = conversation.getOtherParticipant(userId);
+  if (conversation.participant1Id === otherParticipantId) {
+    await this.conversationRepository.increment(
+      { id: conversationId },
+      'participant1UnreadCount',
+      1
+    );
+  } else {
+    await this.conversationRepository.increment(
+      { id: conversationId },
+      'participant2UnreadCount',
+      1
+    );
   }
+
+  // Create message status for the recipient
+  await this.messageStatusRepository.save({
+    messageId: savedMessage.id,
+    userId: otherParticipantId,
+    status: MessageReadStatus.DELIVERED,
+  });
+
+  const messageWithRelations = await this.messageRepository.findOne({
+    where: { id: savedMessage.id },
+    relations: ['sender', 'replyToMessage'],
+  });
+
+  return messageWithRelations!;
+}
 
   async getConversationMessages(
     conversationId: string,
